@@ -1,4 +1,4 @@
-# IndiaMonitor.app - Hackathon Winner 🇮🇳
+# IndiaMonitor.app 
 
 India's WorldMonitor: LIVE risk dashboard with AI briefs, map layers, risk index (monsoon 2026 scenario).
 
