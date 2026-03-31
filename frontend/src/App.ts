@@ -89,20 +89,16 @@ export class App {
       const rawData = await dataRes.json();
 
       // Step 2: Get AI analysis
-      const analyzeRes = await fetch('http://localhost:8000/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: rawData })
-      });
+      const analyzeRes = await fetch('http://localhost:8000/api/analyze');
 
       if (!analyzeRes.ok) throw new Error(`Analyze failed: ${analyzeRes.status}`);
 
       const analysis = await analyzeRes.json();
 
       // Update UI
-      briefEl.textContent = analysis.brief || "Brief not available yet";
-      riskScoreEl.textContent = analysis.risk_index?.toString() || "68";
-      riskStatusEl.textContent = analysis.risk_status || analysis.forecasts?.[0] || "Moderate Risk";
+      briefEl.textContent = analysis.national_brief || "Brief not available";
+      riskScoreEl.textContent = analysis.risk_index?.toString() || "--";
+      riskStatusEl.textContent = analysis.top_drivers?.[0] || "Moderate Risk";
 
       console.log("✅ Backend data loaded successfully", analysis);
 
@@ -120,16 +116,49 @@ export class App {
     const mapContainer = document.getElementById('map-container') as HTMLElement;
 
     this.map = new maplibregl.Map({
-      container: mapContainer,
-      style: 'https://demotiles.maplibre.org/style.json',
-      center: [78.96, 20.59],
-      zoom: 4.4,
+        container: mapContainer,
+        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        center: [78.9629, 22.5937],
+        zoom: 4.5,
+        minZoom: 4,
+        maxBounds: [
+            [67, 6],    // Southwest India
+            [97, 37]    // Northeast India
+        ],
     });
 
     this.map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     this.map.on('load', () => {
-      console.log('✅ Map ready for GeoJSON layers');
+        console.log('✅ Map ready for GeoJSON layers');
+
+        // ✅ Add India GeoJSON
+        this.map!.addSource('india-states', {
+            type: 'geojson',
+            data: '/india_state_geo.json'
+        });
+
+        // Fill layer (light color)
+        this.map!.addLayer({
+            id: 'states-fill',
+            type: 'fill',
+            source: 'india-states',
+            paint: {
+                'fill-color': '#00FFFF',
+                'fill-opacity': 0.08
+            }
+        });
+
+        // 🔥 Border layer (THIS shows boundaries)
+        this.map!.addLayer({
+            id: 'states-outline',
+            type: 'line',
+            source: 'india-states',
+            paint: {
+                'line-color': '#ffffff',
+                'line-width': 1.5
+            }
+        });
     });
   }
 }
