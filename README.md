@@ -1,4 +1,4 @@
-# IRIS-AI
+# IndiaMonitor.app 
 
 **Real-time AI-Powered National Intelligence Dashboard for India**  
 _Mirroring WorldMonitor.app – Built in a 10-hour AI/ML Hackathon_
