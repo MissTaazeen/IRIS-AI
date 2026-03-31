@@ -1,0 +1,10 @@
+Priority,Feature,Description,Data Sources
+1,National AI Brief,2–3 sentence urgent summary + composite India Risk Index (0–100),All sectors + Groq
+2,Interactive India Map,"Leaflet/MapLibre GL with state coloring by risk, port pins, weather overlays, conflict hotspots",India GeoJSON + scraped layers
+3,Live News Feed + AI Summary,30–50 latest articles with AI sentiment & key highlights,"RSS feeds (TOI, Hindu, IE, NDTV, etc.)"
+4,Finance Radar,"Nifty/Sensex + top 8 stocks + commodities (oil, gold, agri) with live movement",yfinance
+5,Ports & Maritime Monitor,"Major ports (JNPT, Mumbai, Chennai, Paradip, etc.) status + congestion alerts",IMD Port Weather API + news filtering
+6,Weather & Disaster Layer,"City weather, monsoon alerts, IMD warnings",IMD APIs + Open-Meteo
+7,Conflict / Security Zones,"LoC, LAC, Naxal, Northeast hotspots with sentiment",News keyword filtering
+8,Alerts Panel + Forecasts,Color-coded alerts + 3 probabilistic forecasts (next 24h),Groq synthesis
+9,Cross-Stream Correlation,"One highlighted card e.g., “Monsoon 72% × JNPT delay → 65% logistics risk”",Groq
