@@ -108,6 +108,12 @@ JSON response:
         )
 
         result = json.loads(response.choices[0].message.content)
+        
+        # Defensive parsing in case Groq returns a dict for forecasts
+        if isinstance(result.get("forecasts"), dict):
+            # Combine keys and values if it returned something like {"24h": "..."}
+            result["forecasts"] = [f"{k}: {v}" for k, v in result["forecasts"].items()]
+
         result['timestamp'] = datetime.utcnow().isoformat()
 
         return result

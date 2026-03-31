@@ -65,11 +65,26 @@ export class App {
           </div>
 
           <h2 class="text-lg font-semibold mb-4">National Risk Index</h2>
-          <div class="flex items-baseline gap-3">
+          <div class="flex items-baseline gap-3 mb-8">
             <div id="risk-score" class="text-7xl font-bold text-orange-400">—</div>
             <div class="mb-1">
               <p class="text-xs text-gray-400">OUT OF 100</p>
               <p id="risk-status" class="text-orange-400 text-sm"></p>
+            </div>
+          </div>
+
+          <div id="extra-analysis" class="text-sm space-y-6 hidden">
+            <div>
+              <h3 class="text-md font-semibold text-gray-200">Top Drivers</h3>
+              <ul id="top-drivers" class="list-disc pl-4 mt-2 text-gray-400 space-y-1"></ul>
+            </div>
+            <div>
+              <h3 class="text-md font-semibold text-gray-200">Forecasts</h3>
+              <ul id="forecasts" class="list-disc pl-4 mt-2 text-gray-400 space-y-1"></ul>
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-yellow-500 uppercase tracking-wider mb-2">Key Correlation</h3>
+              <p id="correlation" class="text-gray-300 bg-gray-900 p-4 rounded-xl border border-gray-700 leading-relaxed"></p>
             </div>
           </div>
         </div>
@@ -89,20 +104,50 @@ export class App {
       const rawData = await dataRes.json();
 
       // Step 2: Get AI analysis
-      const analyzeRes = await fetch('http://localhost:8000/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: rawData })
-      });
+      const analyzeRes = await fetch('http://localhost:8000/api/analyze');
 
       if (!analyzeRes.ok) throw new Error(`Analyze failed: ${analyzeRes.status}`);
 
       const analysis = await analyzeRes.json();
 
       // Update UI
-      briefEl.textContent = analysis.brief || "Brief not available yet";
-      riskScoreEl.textContent = analysis.risk_index?.toString() || "68";
-      riskStatusEl.textContent = analysis.risk_status || analysis.forecasts?.[0] || "Moderate Risk";
+      briefEl.textContent = analysis.national_brief || "Brief not available yet";
+      
+      const riskIndex = analysis.risk_index || 68;
+      riskScoreEl.textContent = riskIndex.toString();
+      
+      // Update color based on score
+      let colorClass = 'text-emerald-500';
+      let riskStatus = 'Low Risk';
+      if (riskIndex >= 70) {
+        colorClass = 'text-red-500';
+        riskStatus = 'High Risk';
+      } else if (riskIndex >= 40) {
+        colorClass = 'text-orange-400';
+        riskStatus = 'Moderate Risk';
+      }
+      
+      riskScoreEl.className = `text-7xl font-bold ${colorClass}`;
+      riskStatusEl.className = `text-sm ${colorClass}`;
+      riskStatusEl.textContent = riskStatus;
+
+      const extraAnalysisEl = document.getElementById('extra-analysis');
+      const topDriversEl = document.getElementById('top-drivers');
+      const forecastsEl = document.getElementById('forecasts');
+      const correlationEl = document.getElementById('correlation');
+
+      if (extraAnalysisEl && topDriversEl && forecastsEl && correlationEl) {
+        extraAnalysisEl.classList.remove('hidden');
+        if (analysis.top_drivers) {
+          topDriversEl.innerHTML = analysis.top_drivers.map((d: string) => `<li>${d}</li>`).join('');
+        }
+        if (analysis.forecasts) {
+          forecastsEl.innerHTML = analysis.forecasts.map((f: string) => `<li>${f}</li>`).join('');
+        }
+        if (analysis.correlation) {
+          correlationEl.textContent = analysis.correlation;
+        }
+      }
 
       console.log("✅ Backend data loaded successfully", analysis);
 
