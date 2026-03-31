@@ -4,9 +4,12 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
+import asyncio
+import json
+from groq import Groq
 
-# Import data providers (all real)
+# Import data providers
 from data_providers.news import get_news
 from data_providers.weather import get_weather
 from data_providers.finance import get_finance
@@ -20,6 +23,7 @@ load_dotenv()
 
 app = FastAPI(title="IRIS - India Real-time Intelligence")
 
+# ✅ Middleware FIRST
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -28,13 +32,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ Response Model
+class AnalyzeResponse(BaseModel):
+    national_brief: str
+    risk_index: int
+    top_drivers: List[str]
+    forecasts: List[str]
+    correlation: str
+    timestamp: str
+
+
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "service": "IndiaMonitor Backend", "timestamp": datetime.utcnow().isoformat()}
+    return {
+        "status": "ok",
+        "service": "IndiaMonitor Backend",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 
 @app.get("/api/map")
 async def get_map_data():
     return get_map_layers()
+
 
 @app.get("/api/data", response_model=Dict[str, Any])
 async def get_all_data():
@@ -50,20 +70,24 @@ async def get_all_data():
     results['timestamp'] = datetime.utcnow().isoformat()
     return results
 
-@app.get("/api/analyze")
+
+@app.get("/api/analyze", response_model=AnalyzeResponse)
 async def analyze_data():
-    import json
-    from groq import Groq
-    
     api_key = os.getenv('GROQ_API_KEY')
+
     if not api_key:
-        return {"error": "GROQ_API_KEY not set. Add to .env. Fallback:", "risk_index": 65, "national_brief": "Set GROQ_API_KEY for AI analysis."}
-    
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY not set"
+        )
+
     client = Groq(api_key=api_key)
-    
-    data = await get_all_data()
-    
-    prompt = f"""India Risk Analysis from data:
+
+    try:
+        # ✅ Timeout protection
+        data = await asyncio.wait_for(get_all_data(), timeout=10)
+
+        prompt = f"""India Risk Analysis from data:
 
 {json.dumps(data, indent=2)}
 
@@ -75,19 +99,22 @@ JSON response:
   "forecasts": ["24h", "48h", "72h"],
   "correlation": "1 key cross-risk"
 }}"""
-    
-    try:
+
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
             response_format={"type": "json_object"}
         )
+
         result = json.loads(response.choices[0].message.content)
         result['timestamp'] = datetime.utcnow().isoformat()
+
         return result
+
     except Exception as e:
-        return {"error": str(e), "risk_index": 65, "timestamp": datetime.utcnow().isoformat()}
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn

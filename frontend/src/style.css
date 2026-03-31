@@ -2,15 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom base styling for IRIS-AI */
-
 body {
-  margin: 0;
-  background-color: #0b0f1a; /* dark theme */
-  color: #e5e7eb;
-  font-family: system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
-#app {
-  min-height: 100vh;
+.map-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* WorldMonitor dark aesthetic */
+.glass {
+  background: rgba(17, 17, 24, 0.95);
+  backdrop-filter: blur(12px);
+}
+
+/* Add at the bottom */
+#map-container {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: #0a0a0f;
+}
+
+/* Ensure canvas inside map gets proper sizing */
+.maplibregl-canvas {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
 }
