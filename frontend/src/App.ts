@@ -115,16 +115,100 @@ export class App {
   private initializeMap() {
     const mapContainer = document.getElementById('map-container') as HTMLElement;
 
-    this.map = new maplibregl.Map({
-        container: mapContainer,
-        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-        center: [78.9629, 22.5937],
-        zoom: 4.5,
-        minZoom: 4,
-        maxBounds: [
-            [67, 6],    // Southwest India
-            [97, 37]    // Northeast India
-        ],
+    const riskData: Record<string, number> = {
+        "Maharashtra": 80,
+        "Karnataka": 50,
+        "Gujarat": 30,
+        "Tamil Nadu": 60,
+        "Delhi": 70,
+        "Rajasthan": 40
+    };
+
+    this.map!.on('load', async () => {
+        console.log('✅ Map ready');
+
+        // Fetch GeoJSON
+        const res = await fetch('/india_state_geo.json');
+        const geojson = await res.json();
+
+        // 🎯 Risk data (match EXACT names from NAME_1)
+        const riskData: Record<string, number> = {
+            "Maharashtra": 80,
+            "Karnataka": 50,
+            "Gujarat": 30,
+            "Tamil Nadu": 60,
+            "Delhi": 70,
+            "Rajasthan": 40,
+            "Andaman and Nicobar": 20
+        };
+
+        // 🔥 Inject risk into GeoJSON
+        geojson.features.forEach((feature: any) => {
+            const state = feature.properties.NAME_1;
+            feature.properties.risk = riskData[state] ?? 10; // default
+        });
+
+        // Add source
+        this.map!.addSource('india-states', {
+            type: 'geojson',
+            data: geojson
+        });
+
+        // 🎨 Heatmap layer
+        this.map!.addLayer({
+            id: 'states-fill',
+            type: 'fill',
+            source: 'india-states',
+            paint: {
+            'fill-color': [
+                'interpolate',
+                ['linear'],
+                ['get', 'risk'],
+                0, '#00ff00',   // green
+                50, '#ffff00',  // yellow
+                100, '#ff0000'  // red
+            ],
+            'fill-opacity': 0.6
+            }
+        });
+
+        // 🖱️ Click event
+        this.map!.on('click', 'states-fill', (e: any) => {
+            const feature = e.features[0];
+
+            const stateName = feature.properties.NAME_1;
+            const risk = feature.properties.risk;
+
+            new maplibregl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(`
+                    <div style="color: black;">
+                        <strong>${stateName}</strong><br/>
+                        Risk Level: ${risk}
+                    </div>
+                `)
+                .addTo(this.map!);
+        });
+
+        // Change cursor on hover
+        this.map!.on('mouseenter', 'states-fill', () => {
+            this.map!.getCanvas().style.cursor = 'pointer';
+        });
+
+        this.map!.on('mouseleave', 'states-fill', () => {
+            this.map!.getCanvas().style.cursor = '';
+        });
+
+        // Border layer
+        this.map!.addLayer({
+            id: 'states-outline',
+            type: 'line',
+            source: 'india-states',
+            paint: {
+            'line-color': '#ffffff',
+            'line-width': 1.2
+            }
+        });
     });
 
     this.map.addControl(new maplibregl.NavigationControl(), 'top-right');
