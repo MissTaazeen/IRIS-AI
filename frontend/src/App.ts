@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 export class App {
   private container: HTMLElement;
   private map: maplibregl.Map | null = null;
+  private conflictMarkers: maplibregl.Marker[] = [];
 
   constructor() {
     this.container = document.getElementById('app') as HTMLElement;
@@ -12,7 +13,8 @@ export class App {
   init() {
     this.renderLayout();
     this.initializeMap();
-    this.loadBackendData();        // ← Integration
+    this.loadBackendData();
+    this.setupToggles();
   }
 
   private renderLayout() {
@@ -22,227 +24,173 @@ export class App {
           <span class="text-3xl">🇮🇳</span>
           <div>
             <h1 class="text-2xl font-bold tracking-tighter">IRIS</h1>
-            <p class="text-xs text-emerald-400 flex items-center gap-1.5">
-              <span class="relative flex h-2 w-2">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              LIVE • NATIONAL INTELLIGENCE DASHBOARD
-            </p>
+            <p class="text-xs text-emerald-400">LIVE • NATIONAL INTELLIGENCE DASHBOARD</p>
           </div>
         </div>
-        <div class="text-sm text-gray-400">31 March 2026 • 14:XX IST</div>
+        <div class="text-sm text-gray-400">Live</div>
       </div>
 
       <div class="flex flex-1 overflow-hidden">
-        <!-- Left Sidebar -->
-        <div class="w-72 bg-[#111118] border-r border-gray-800 p-6 flex flex-col">
-          <h2 class="uppercase text-xs tracking-widest text-gray-500 mb-6">DATA LAYERS</h2>
-          <div class="space-y-3 text-sm">
-            <label class="flex items-center gap-3 p-3 hover:bg-gray-900 rounded-2xl cursor-pointer">
-              <input type="checkbox" checked class="accent-emerald-500" /> 🌧️ Weather & Monsoon
-            </label>
-            <label class="flex items-center gap-3 p-3 hover:bg-gray-900 rounded-2xl cursor-pointer">
-              <input type="checkbox" checked class="accent-emerald-500" /> ⚓ Major Ports
-            </label>
-            <label class="flex items-center gap-3 p-3 hover:bg-gray-900 rounded-2xl cursor-pointer">
-              <input type="checkbox" class="accent-emerald-500" /> 🔴 Conflict Zones
-            </label>
-            <label class="flex items-center gap-3 p-3 hover:bg-gray-900 rounded-2xl cursor-pointer">
-              <input type="checkbox" class="accent-emerald-500" /> 📈 Finance Radar
-            </label>
-          </div>
+        <div class="w-72 bg-[#111118] border-r border-gray-800 p-6">
+          <h2 class="uppercase text-xs text-gray-500 mb-6">DATA LAYERS</h2>
+
+          <label class="flex items-center gap-3 p-3 cursor-pointer">
+            <input id="toggle-conflict" type="checkbox" checked />
+            🔴 Conflict Zones
+          </label>
         </div>
 
-        <!-- Map -->
-        <div id="map-container" class="flex-1 relative"></div>
+        <div id="map-container" class="flex-1"></div>
 
-        <!-- Right Panel -->
-        <div class="w-96 bg-[#111118] border-l border-gray-800 p-6 overflow-y-auto">
-          <h2 class="text-lg font-semibold mb-4">National AI Brief</h2>
-          <div id="national-brief" class="text-sm leading-relaxed text-gray-300 mb-8 min-h-[140px]">
-            Connecting to backend...
-          </div>
+        <div class="w-96 bg-[#111118] border-l border-gray-800 p-6">
+          <h2 class="text-lg mb-4">National AI Brief</h2>
+          <div id="national-brief">Connecting...</div>
 
-          <h2 class="text-lg font-semibold mb-4">National Risk Index</h2>
-          <div class="flex items-baseline gap-3">
-            <div id="risk-score" class="text-7xl font-bold text-orange-400">—</div>
-            <div class="mb-1">
-              <p class="text-xs text-gray-400">OUT OF 100</p>
-              <p id="risk-status" class="text-orange-400 text-sm"></p>
-            </div>
-          </div>
+          <h2 class="text-lg mt-6 mb-4">Risk Index</h2>
+          <div id="risk-score">—</div>
+          <div id="risk-status"></div>
         </div>
       </div>
     `;
   }
 
   private async loadBackendData() {
-    const briefEl = document.getElementById('national-brief') as HTMLElement;
-    const riskScoreEl = document.getElementById('risk-score') as HTMLElement;
-    const riskStatusEl = document.getElementById('risk-status') as HTMLElement;
-
     try {
-      // Step 1: Get raw data
-      const dataRes = await fetch('http://localhost:8000/api/data');
-      if (!dataRes.ok) throw new Error(`Data fetch failed: ${dataRes.status}`);
-      const rawData = await dataRes.json();
-
-      // Step 2: Get AI analysis
       const analyzeRes = await fetch('http://localhost:8000/api/analyze');
-
-      if (!analyzeRes.ok) throw new Error(`Analyze failed: ${analyzeRes.status}`);
-
       const analysis = await analyzeRes.json();
 
-      // Update UI
-      briefEl.textContent = analysis.national_brief || "Brief not available";
-      riskScoreEl.textContent = analysis.risk_index?.toString() || "--";
-      riskStatusEl.textContent = analysis.top_drivers?.[0] || "Moderate Risk";
+      (document.getElementById('national-brief') as HTMLElement).textContent =
+        analysis.national_brief;
 
-      console.log("✅ Backend data loaded successfully", analysis);
+      (document.getElementById('risk-score') as HTMLElement).textContent =
+        analysis.risk_index;
 
-    } catch (error: any) {
-      console.error("Backend error:", error);
-      briefEl.innerHTML = `
-        <span class="text-red-400">
-          Cannot connect to backend.<br>
-          Make sure Member 1 has started the backend on port 8000 with CORS enabled.
-        </span>`;
+      (document.getElementById('risk-status') as HTMLElement).textContent =
+        analysis.top_drivers?.[0];
+    } catch {
+      console.log("Backend error");
     }
   }
 
   private initializeMap() {
     const mapContainer = document.getElementById('map-container') as HTMLElement;
 
-    const riskData: Record<string, number> = {
+    this.map = new maplibregl.Map({
+      container: mapContainer,
+      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      center: [78.9629, 22.5937],
+      zoom: 4.5,
+      minZoom: 4,
+      maxBounds: [
+        [67, 6],
+        [97, 37]
+      ]
+    });
+
+    this.map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    this.map.on('load', async () => {
+      // 🔹 Load GeoJSON
+      const geoRes = await fetch('/india_state_geo.json');
+      const geojson = await geoRes.json();
+
+      // 🔹 Risk mapping
+      const riskData: Record<string, number> = {
         "Maharashtra": 80,
         "Karnataka": 50,
         "Gujarat": 30,
         "Tamil Nadu": 60,
         "Delhi": 70,
         "Rajasthan": 40
-    };
+      };
 
-    this.map!.on('load', async () => {
-        console.log('✅ Map ready');
+      geojson.features.forEach((f: any) => {
+        f.properties.risk = riskData[f.properties.NAME_1] ?? 10;
+      });
 
-        // Fetch GeoJSON
-        const res = await fetch('/india_state_geo.json');
-        const geojson = await res.json();
+      // 🔹 Add source
+      this.map!.addSource('india-states', {
+        type: 'geojson',
+        data: geojson
+      });
 
-        // 🎯 Risk data (match EXACT names from NAME_1)
-        const riskData: Record<string, number> = {
-            "Maharashtra": 80,
-            "Karnataka": 50,
-            "Gujarat": 30,
-            "Tamil Nadu": 60,
-            "Delhi": 70,
-            "Rajasthan": 40,
-            "Andaman and Nicobar": 20
-        };
+      // 🔹 Heatmap
+      this.map!.addLayer({
+        id: 'states-fill',
+        type: 'fill',
+        source: 'india-states',
+        paint: {
+          'fill-color': [
+            'interpolate',
+            ['linear'],
+            ['get', 'risk'],
+            0, '#00ff00',
+            50, '#ffff00',
+            100, '#ff0000'
+          ],
+          'fill-opacity': 0.6
+        }
+      });
 
-        // 🔥 Inject risk into GeoJSON
-        geojson.features.forEach((feature: any) => {
-            const state = feature.properties.NAME_1;
-            feature.properties.risk = riskData[state] ?? 10; // default
-        });
+      // 🔹 Borders
+      this.map!.addLayer({
+        id: 'states-outline',
+        type: 'line',
+        source: 'india-states',
+        paint: {
+          'line-color': '#fff',
+          'line-width': 1.2
+        }
+      });
 
-        // Add source
-        this.map!.addSource('india-states', {
-            type: 'geojson',
-            data: geojson
-        });
+      // 🔹 Click popup
+      this.map!.on('click', 'states-fill', (e: any) => {
+        const f = e.features[0];
 
-        // 🎨 Heatmap layer
-        this.map!.addLayer({
-            id: 'states-fill',
-            type: 'fill',
-            source: 'india-states',
-            paint: {
-            'fill-color': [
-                'interpolate',
-                ['linear'],
-                ['get', 'risk'],
-                0, '#00ff00',   // green
-                50, '#ffff00',  // yellow
-                100, '#ff0000'  // red
-            ],
-            'fill-opacity': 0.6
-            }
-        });
+        new maplibregl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(`<b>${f.properties.NAME_1}</b><br/>Risk: ${f.properties.risk}`)
+          .addTo(this.map!);
+      });
 
-        // 🖱️ Click event
-        this.map!.on('click', 'states-fill', (e: any) => {
-            const feature = e.features[0];
+      // 🔹 Cursor
+      this.map!.on('mouseenter', 'states-fill', () => {
+        this.map!.getCanvas().style.cursor = 'pointer';
+      });
+      this.map!.on('mouseleave', 'states-fill', () => {
+        this.map!.getCanvas().style.cursor = '';
+      });
 
-            const stateName = feature.properties.NAME_1;
-            const risk = feature.properties.risk;
+      // 🔹 Fetch markers
+      const apiRes = await fetch('http://localhost:8000/api/data');
+      const data = await apiRes.json();
 
-            new maplibregl.Popup()
-                .setLngLat(e.lngLat)
-                .setHTML(`
-                    <div style="color: black;">
-                        <strong>${stateName}</strong><br/>
-                        Risk Level: ${risk}
-                    </div>
-                `)
-                .addTo(this.map!);
-        });
+      const zones = data.conflict?.risk_zones || [];
 
-        // Change cursor on hover
-        this.map!.on('mouseenter', 'states-fill', () => {
-            this.map!.getCanvas().style.cursor = 'pointer';
-        });
+      this.conflictMarkers = [];
 
-        this.map!.on('mouseleave', 'states-fill', () => {
-            this.map!.getCanvas().style.cursor = '';
-        });
+      zones.forEach((z: any) => {
+        const marker = new maplibregl.Marker({
+          color: z.risk > 70 ? 'red' : z.risk > 50 ? 'orange' : 'green'
+        })
+          .setLngLat([z.lon, z.lat])
+          .setPopup(new maplibregl.Popup().setHTML(`<b>${z.name}</b><br/>Risk: ${z.risk}`))
+          .addTo(this.map!);
 
-        // Border layer
-        this.map!.addLayer({
-            id: 'states-outline',
-            type: 'line',
-            source: 'india-states',
-            paint: {
-            'line-color': '#ffffff',
-            'line-width': 1.2
-            }
-        });
+        this.conflictMarkers.push(marker);
+      });
     });
+  }
 
-    this.map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  private setupToggles() {
+    const toggle = document.getElementById('toggle-conflict') as HTMLInputElement;
 
-    this.map.on('load', () => {
-        console.log('✅ Map ready for GeoJSON layers');
-
-        // ✅ Add India GeoJSON
-        this.map!.addSource('india-states', {
-            type: 'geojson',
-            data: '/india_state_geo.json'
-        });
-
-        // Fill layer (light color)
-        this.map!.addLayer({
-            id: 'states-fill',
-            type: 'fill',
-            source: 'india-states',
-            paint: {
-                'fill-color': '#00FFFF',
-                'fill-opacity': 0.08
-            }
-        });
-
-        // 🔥 Border layer (THIS shows boundaries)
-        this.map!.addLayer({
-            id: 'states-outline',
-            type: 'line',
-            source: 'india-states',
-            paint: {
-                'line-color': '#ffffff',
-                'line-width': 1.5
-            }
-        });
+    toggle.addEventListener('change', () => {
+      if (toggle.checked) {
+        this.conflictMarkers.forEach(m => m.addTo(this.map!));
+      } else {
+        this.conflictMarkers.forEach(m => m.remove());
+      }
     });
   }
 }
