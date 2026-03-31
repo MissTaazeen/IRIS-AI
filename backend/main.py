@@ -17,12 +17,12 @@ from data_providers.dummy_traffic import get_traffic
 
 load_dotenv()
 
-app = FastAPI(title="IndiaMonitor Backend", version="1.0.0")
+app = FastAPI(title="IRIS - India Real-time Intelligence")
 
-# CORS for frontend
+# Add this block right after creating the app
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Vite dev server
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
